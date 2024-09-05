@@ -1,10 +1,10 @@
 <resources>
     <!-- Base application theme. -->
-    <style name="Base.Theme.UBERCLONKOTLIN" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Base.Theme.UBERCLONEKOTLIN" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Customize your light theme here. -->
     </style>
 
-    <style name="Theme.UBERCLONKOTLIN" parent="Base.Theme.UBERCLONKOTLIN">
+    <style name="Theme.UBERCLONEKOTLIN" parent="Base.Theme.UBERCLONEKOTLIN">
         <item name="colorPrimary">@color/grey_2</item>
         <item name="colorPrimaryVariant">@color/grey_2</item>
         <item name="colorOnPrimary">@color/grey_2</item>
