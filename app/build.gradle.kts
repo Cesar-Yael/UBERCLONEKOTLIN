@@ -69,6 +69,10 @@ dependencies {
     //Easy Way Location
     implementation("com.github.prabhat1707:EasyWayLocation:2.4")
 
+    //Google Places
+    implementation("com.google.maps.android:places-ktx:3.2.0")
+    implementation("com.android.volley:volley:1.2.1")
+
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
