@@ -3,6 +3,7 @@ package com.yaelsoriano.uberclonkotlin.activities
 import android.Manifest
 import android.content.pm.PackageManager
 import android.content.res.Resources
+import android.location.Geocoder
 import android.location.Location
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
@@ -187,6 +188,8 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Listener {
     override fun onMapReady(map: GoogleMap) {
         googleMap = map
         googleMap?.uiSettings?.isZoomControlsEnabled = true
+        onCameraMove()
+
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
@@ -198,7 +201,7 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Listener {
             return
         }
         //Desactivar el punto azul de la ubicación que viene por default
-        googleMap?.isMyLocationEnabled = true
+        googleMap?.isMyLocationEnabled = false
 
         try {
             val success = googleMap?.setMapStyle(
@@ -212,6 +215,24 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Listener {
         }
     }
 
+    private fun onCameraMove() {
+        googleMap?.setOnCameraIdleListener {
+            try {
+                val geocoder = Geocoder(this)
+                originLatLng = googleMap?.cameraPosition?.target
+                val addressList = geocoder.getFromLocation(originLatLng?.latitude!!, originLatLng?.longitude!!, 1)
+
+                val city = addressList?.get(0)?.locality
+                val country = addressList?.get(0)?.countryName
+                val address = addressList?.get(0)?.getAddressLine(0)
+                originName = "$address $city"
+                autoCompleteOrigin?.setText(originName)
+            } catch (e: Exception) {
+                Log.d("Error", "Mensaje de error: ${e.message}")
+            }
+        }
+    }
+
     override fun locationOn() {
     }
 
@@ -219,13 +240,12 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Listener {
         //Latitud y Longitud de mi posición actual
         myLocationLatLng = LatLng(location.latitude, location.longitude)
 
-        googleMap?.moveCamera(
-            CameraUpdateFactory.newCameraPosition(
-            CameraPosition.builder().target(myLocationLatLng!!).zoom(17f).build()
-        ))
-
         if (!isLocationEnabled) {
             isLocationEnabled = true
+            googleMap?.moveCamera(
+                CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.builder().target(myLocationLatLng!!).zoom(17f).build()
+                ))
             limitSearch()
         }
     }
