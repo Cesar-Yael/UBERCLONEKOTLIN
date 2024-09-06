@@ -3,6 +3,9 @@ package com.yaelsoriano.uberclonkotlin.activities
 import android.Manifest
 import android.content.pm.PackageManager
 import android.content.res.Resources
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.location.Geocoder
 import android.location.Location
 import android.os.Build
@@ -12,6 +15,7 @@ import android.util.Log
 import android.view.WindowManager
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.example.easywaylocation.EasyWayLocation
 import com.example.easywaylocation.Listener
 import com.google.android.gms.common.api.Status
@@ -21,21 +25,28 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.model.Place
 import com.google.android.libraries.places.api.model.RectangularBounds
 import com.google.android.libraries.places.api.net.PlacesClient
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment
 import com.google.android.libraries.places.widget.listener.PlaceSelectionListener
+import com.google.firebase.firestore.GeoPoint
 import com.google.maps.android.SphericalUtil
 import com.yaelsoriano.uberclonkotlin.R
 import com.yaelsoriano.uberclonkotlin.databinding.ActivityMapBinding
 import com.yaelsoriano.uberclonkotlin.providers.AuthProvider
 import com.yaelsoriano.uberclonkotlin.providers.GeoProvider
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.optic.uberclonekotlin.utils.CarMoveAnim
+import com.yaelsoriano.uberclonkotlin.models.DriverLocation
+import org.imperiumlabs.geofirestore.callbacks.GeoQueryEventListener
 
 class MapActivity : AppCompatActivity(), OnMapReadyCallback, Listener {
     private lateinit var binding: ActivityMapBinding
@@ -53,6 +64,8 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Listener {
     private var destinationName = ""
     private var originLatLng: LatLng? = null
     private var destinationLatLng: LatLng? = null
+    private val driverMarkers = ArrayList<Marker>()
+    private val driverLocations = ArrayList<DriverLocation>()
 
     private var isLocationEnabled = false
 
@@ -215,6 +228,101 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Listener {
         }
     }
 
+    private fun getNearbyDrivers() {
+        if (myLocationLatLng == null) return
+        geoProvider.getNearbyDrivers(myLocationLatLng!!, 10.0).addGeoQueryEventListener(
+             object: GeoQueryEventListener{
+                 override fun onKeyEntered(documentID: String, location: GeoPoint) {
+                     Log.d("***Firestore", "Document id: $documentID " + "location: $location")
+                     for (marker in driverMarkers) {
+                         if (marker.tag !=null) {
+                             if (marker.tag == documentID) {
+                                 return
+                             }
+                         }
+                     }
+                     //Crear un nuevo marcador para el conductor conectado
+                     val driverLatLng = LatLng(location.latitude, location.longitude)
+                     val drawable = ContextCompat.getDrawable(applicationContext, R.drawable.b_white_car)
+                     val marker = googleMap?.addMarker(
+                         MarkerOptions().position(driverLatLng).title("Conductor disponible").icon(
+                            getMarkerFromDrawable(drawable!!)
+                         )
+                     )
+                     marker?.tag = documentID
+                     driverMarkers.add(marker!!)
+
+                     val driverLocation = DriverLocation()
+                     driverLocation.id = documentID
+                     driverLocations.add(driverLocation)
+                 }
+
+                 override fun onKeyExited(documentID: String) {
+                     for (marker in driverMarkers) {
+                         if (marker.tag != null) {
+                             if (marker.tag == documentID) {
+                                 marker.remove()
+                                 driverMarkers.remove(marker)
+                                 driverLocations.removeAt(getPositionDriver(documentID))
+                                 return
+                             }
+                         }
+                     }
+                 }
+
+                 override fun onKeyMoved(documentID: String, location: GeoPoint) {
+                    for (marker in driverMarkers) {
+                        val start = LatLng(location.latitude, location.longitude)
+                        var end: LatLng? = null
+                        val position = getPositionDriver(marker.tag.toString())
+
+                        if (marker.tag != null) {
+                            if (marker.tag == documentID) {
+                                //marker.position = LatLng(location.latitude, location.longitude)
+                                if (driverLocations[position].latlng != null) {
+                                    end = driverLocations[position].latlng
+                                }
+                                driverLocations[position].latlng = LatLng(location.latitude, location.longitude)
+                                if (end != null) {
+                                    CarMoveAnim.carAnim(marker, end, start)
+                                }
+                            }
+                        }
+                    }
+                 }
+
+                 override fun onGeoQueryError(exception: Exception) {
+                 }
+
+                 override fun onGeoQueryReady() {
+                 }
+             }
+        )
+    }
+
+    private fun getMarkerFromDrawable(drawable: Drawable): BitmapDescriptor {
+        val canvas = Canvas()
+        val bitmap = Bitmap.createBitmap(
+            80,
+            60,
+            Bitmap.Config.ARGB_8888
+        )
+        canvas.setBitmap(bitmap)
+        drawable.setBounds(0, 0, 80, 60)
+        drawable.draw(canvas)
+        return BitmapDescriptorFactory.fromBitmap(bitmap)
+    }
+
+    private fun getPositionDriver(id: String): Int {
+        var positon = 0
+        for (i in driverLocations.indices) {
+            if (id == driverLocations[i].id) {
+                positon = i
+            }
+        }
+        return positon
+    }
+
     private fun onCameraMove() {
         googleMap?.setOnCameraIdleListener {
             try {
@@ -240,12 +348,13 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback, Listener {
         //Latitud y Longitud de mi posición actual
         myLocationLatLng = LatLng(location.latitude, location.longitude)
 
-        if (!isLocationEnabled) {
+        if (!isLocationEnabled) { //Se ejecuta una sola vez
             isLocationEnabled = true
             googleMap?.moveCamera(
                 CameraUpdateFactory.newCameraPosition(
                     CameraPosition.builder().target(myLocationLatLng!!).zoom(17f).build()
                 ))
+            getNearbyDrivers()
             limitSearch()
         }
     }
